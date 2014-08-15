@@ -14,11 +14,11 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     private let _paddleView : PaddelView;
     private let _ballView : BallView;
     
-    private let _dynamicAni : UIDynamicAnimator;
-    private let _collisionBehavior : UICollisionBehavior;
-    private let _paddleDynamicItemBehavior : UIDynamicItemBehavior;
-    private let _ballDynamicItemBehavior : UIDynamicItemBehavior;
-    private let _ballGravityBehvaior : UIGravityBehavior;
+    private var _dynamicAni : UIDynamicAnimator!;
+    private var _collisionBehavior : UICollisionBehavior!;
+    private var _paddleDynamicItemBehavior : UIDynamicItemBehavior!;
+    private var _ballDynamicItemBehavior : UIDynamicItemBehavior!;
+    private var _ballGravityBehvaior : UIGravityBehavior!;
     
     private var _bricks : [BrickView];
     private var _ballIsMoving : Bool;
@@ -53,6 +53,9 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     private let _PushDirectionDown : CGFloat = 90.0;
     private let _PushDirectionLeft : CGFloat = 180.0;
     private let _PushDirectionUp : CGFloat = 270.0;
+    
+    private let _maxLives : Int = 3;
+    private var _usedLives : Int = 0;
     
     required init(coder aDecoder: NSCoder!)
     {
@@ -156,6 +159,12 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     
     func SetBehaviors()
     {
+        _dynamicAni = UIDynamicAnimator();
+        _collisionBehavior = UICollisionBehavior();
+        _paddleDynamicItemBehavior = UIDynamicItemBehavior();
+        _ballDynamicItemBehavior = UIDynamicItemBehavior();
+        _ballGravityBehvaior = UIGravityBehavior();
+        
         // paddle view dynamic behavior
         _paddleDynamicItemBehavior.addItem(_paddleView);
         _paddleDynamicItemBehavior.allowsRotation = false;
@@ -189,6 +198,12 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     func ClearAllBehaviors()
     {
         _dynamicAni.removeAllBehaviors();
+        
+        _dynamicAni = nil;
+        _collisionBehavior = nil;
+        _paddleDynamicItemBehavior = nil;
+        _ballDynamicItemBehavior = nil;
+        _ballGravityBehvaior = nil;
     }
     
     func SetBoundries()
@@ -203,13 +218,11 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
         
         for brickView in _bricks as [BrickView]
         {
-            _collisionBehavior.addItem(brickView);
+            if (!brickView.shouldDie)
+            {
+                _collisionBehavior.addItem(brickView);
+            }
         }
-    }
-    
-    func ClearBoundries()
-    {
-        _collisionBehavior.removeAllBoundaries();
     }
     
     func PushView(view : UIView, angleInDegrees : CGFloat = 0.0, magnitude : CGFloat = 0.05)
@@ -393,7 +406,7 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     {
         if (!_ballIsMoving)
         {
-            _ballView.frame.origin = CGPointMake(_paddleView.frame.origin.x + ((_paddleView.frame.size.width - _ballView.frame.size.width) * 0.5), _paddleView.frame.origin.y - _ballView.frame.size.height);
+            CenterBallOnPaddle();
         }
     }
     
@@ -417,11 +430,39 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
         }
         
         _ballGravityBehvaior.magnitude = gravMag;
+        
+        // test to see if ball feel into the abyss
+        if (_ballView.center.y >= self.view.bounds.size.height)
+        {
+            _usedLives++;
+            
+            if (_usedLives < _maxLives)
+            {
+                ResetBall();
+            }
+        }
     }
     
     /*
     * Convenience Methods
     */
+
+    func CenterBallOnPaddle()
+    {
+        _ballView.frame.origin = CGPointMake(_paddleView.frame.origin.x + ((_paddleView.frame.size.width - _ballView.frame.size.width) * 0.5), _paddleView.frame.origin.y - _ballView.frame.size.height);
+    }
+    
+    func ResetBall()
+    {
+        ClearAllBehaviors();
+        SetBehaviors();
+        SetBoundries();
+        
+        _ballIsMoving = false;
+        
+        CenterBallOnPaddle();
+        _dynamicAni.updateItemUsingCurrentState(_ballView);
+    }
     
     func SpeedForBall() -> CGFloat
     {
