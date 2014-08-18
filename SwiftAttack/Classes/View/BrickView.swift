@@ -49,6 +49,28 @@ class BrickView: RoundedBoxView
         }
     }
     
+    var ScoreValue : Int
+    {
+        get
+        {
+            var value : Int;
+            
+            switch (density)
+            {
+                case BrickDensityType.Medium:
+                    value = 2;
+                
+                case BrickDensityType.Hard:
+                    value = 3;
+                
+                default:
+                    value = 1;
+            }
+            
+            return value;
+        }
+    }
+    
     convenience init()
     {
         self.init(frame: CGRectZero);

@@ -10,6 +10,10 @@ import UIKit
 
 class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBehaviorDelegate, PaddelViewDelegate, BallViewDelegate
 {
+    // IBOutlets
+    @IBOutlet weak var livesLabel : UILabel!;
+    @IBOutlet weak var scoreLabel : UILabel!;
+    
     // Private Properties
     private let _paddleView : PaddelView;
     private let _ballView : BallView;
@@ -26,13 +30,12 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     // Constants
     private let _TopBoundryIdentifier : String = "TopBoundry";
     private let _LeftBoundryIdentifier : String = "LeftBoundry";
-    private let _RightBoundryIdentifier : String = "RightBoundry";
+    private let _RightBoundryIdentifier : String = "RightBoundryw";
     
     private let _PaddleVelocityMultiplier : CGFloat = 50;
-    private let _BallVelocityMultiplier : CGFloat = 1000;
-    
     private let _PaddleDefaultResistance : CGFloat = 0.25;
     private let _PaddleMaxResistance : CGFloat = 100.0;
+    private var _PaddleOrigY : CGFloat = 0.0;
     
     private let _ballSpeedMax : CGFloat = 800;
     
@@ -42,7 +45,6 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     private let _ballPaddleMagnitudeMultiplier : CGFloat = 0.000025;
     private let _ballGravityMultiplier : CGFloat = 0.0001;
     
-    private let _NumBricks : Int = 30;
     private let _BricksPerRow : Int = 5;
     private let _BrickPadding: CGFloat = 5;
     private let _BricksTopPadding : CGFloat = 50;
@@ -54,8 +56,18 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     private let _PushDirectionLeft : CGFloat = 180.0;
     private let _PushDirectionUp : CGFloat = 270.0;
     
-    private let _maxLives : Int = 3;
-    private var _usedLives : Int = 0;
+    private let _MaxLives : Int = 3;
+    private let _MaxLevels : Int = 3;
+    
+    private var _UsedLives : Int = 0;
+    private var _Level : Int = 1;
+    private var _NumBricks : Int = 20;
+    private var _ClearedBricks : Int = 0;
+    private var _Score : Int = 0;
+    private var _GameOn = true;
+    
+    private var _ScoreMultiplier = 0;
+    private var _SpeedMultiplier : CGFloat = 1.0;
     
     required init(coder aDecoder: NSCoder!)
     {
@@ -87,6 +99,9 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
         
         self.view.addSubview(_paddleView);
         self.view.addSubview(_ballView);
+        
+        self.livesLabel.text = String(_MaxLives);
+        self.scoreLabel.text = String(0);
     }
     
     override func viewWillAppear(animated: Bool)
@@ -94,8 +109,10 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
         super.viewWillAppear(animated);
         
         // set frames
-        _paddleView.frame.origin = CGPointMake((self.view.bounds.size.width - _paddleView.frame.size.width) * 0.5, self.view.bounds.size.height - ((self.view.bounds.size.height - _paddleView.frame.size.height) * 0.1));
+        _paddleView.frame.origin = CGPointMake((self.view.bounds.size.width - _paddleView.frame.size.width) * 0.5, self.view.bounds.size.height - ((self.view.bounds.size.height - _paddleView.frame.size.height) * 0.15));
         _ballView.frame.origin = CGPointMake(_paddleView.frame.origin.x + (_paddleView.frame.size.width * 0.5), _paddleView.frame.origin.y - _ballView.frame.size.height);
+        
+        _PaddleOrigY = _paddleView.frame.origin.y;
         
         self.BuildBricks();
         
@@ -110,6 +127,7 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     
     func BuildBricks()
     {
+        _NumBricks = _NumBricks * _Level;
         
         let boundsWidth = self.view.bounds.size.width - _BricksLeftPadding - _BricksRightPadding;
         let totalPadding = CGFloat(_BricksPerRow - 1) * _BrickPadding;
@@ -170,7 +188,7 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
         _paddleDynamicItemBehavior.allowsRotation = false;
         _paddleDynamicItemBehavior.elasticity = 0.5;
         _paddleDynamicItemBehavior.resistance = _PaddleDefaultResistance;
-        _paddleDynamicItemBehavior.density = 10000000;
+        _paddleDynamicItemBehavior.density = 100;
         _paddleDynamicItemBehavior.addLinearVelocity(CGPointMake(_PaddleVelocityMultiplier, 0), forItem: _paddleView);
         _dynamicAni.addBehavior(_paddleDynamicItemBehavior);
         
@@ -299,7 +317,7 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
             {
                 if (SpeedForBall() < _ballSpeedMax)
                 {
-                    let mag : CGFloat = SpeedForBall() * _ballPaddleMagnitudeMultiplier;
+                    let mag : CGFloat = (SpeedForBall() * _ballPaddleMagnitudeMultiplier) * _SpeedMultiplier;
                     
                     PushView(_ballView, angleInDegrees: _PushDirectionUp, magnitude: mag);
                     
@@ -334,6 +352,11 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
                 
                 if (brickView.shouldDie)
                 {
+                    _ClearedBricks++;
+                    
+                    UpdateScore(brickView.ScoreValue);
+                    UpdateDisplay();
+                    
                     brickView.removeFromSuperview();
                     _collisionBehavior.removeItem(brickView);
                     _dynamicAni.updateItemUsingCurrentState(_ballView);
@@ -404,6 +427,11 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     
     func PaddelViewCenterDidChange(pView: PaddelView, center: CGPoint)
     {
+        if (pView.frame.origin.y != _PaddleOrigY)
+        {
+            pView.frame.origin.y = _PaddleOrigY;
+        }
+        
         if (!_ballIsMoving)
         {
             CenterBallOnPaddle();
@@ -434,11 +462,21 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
         // test to see if ball feel into the abyss
         if (_ballView.center.y >= self.view.bounds.size.height)
         {
-            _usedLives++;
-            
-            if (_usedLives < _maxLives)
+            if (_GameOn)
             {
-                ResetBall();
+                _UsedLives++;
+                
+                if (_UsedLives < _MaxLives)
+                {
+                    ResetBall();
+                }
+                
+                UpdateDisplay ();
+                
+                if (_UsedLives == _MaxLives)
+                {
+                    _GameOn = false;
+                }
             }
         }
     }
@@ -454,6 +492,9 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
     
     func ResetBall()
     {
+        _ScoreMultiplier = 0;
+        _SpeedMultiplier = 1;
+        
         ClearAllBehaviors();
         SetBehaviors();
         SetBoundries();
@@ -462,6 +503,41 @@ class ViewController: UIViewController, EnvironmentViewDelegate, UICollisionBeha
         
         CenterBallOnPaddle();
         _dynamicAni.updateItemUsingCurrentState(_ballView);
+    }
+    
+    func UpdateScore(scoreValue : Int)
+    {
+        _ScoreMultiplier += 1;
+        _SpeedMultiplier += 0.05;
+        _Score += scoreValue * _ScoreMultiplier;
+        
+        // if all bricks are cleared then progress to the next level
+        if (_ClearedBricks >= _NumBricks)
+        {
+            _Level++;
+            _ClearedBricks = 0;
+            
+            _ballIsMoving = false;
+            
+            ClearAllBehaviors();
+            
+            // if we havne't finished all levels then build the bricks
+            if (_Level <= _MaxLevels)
+            {
+                BuildBricks();
+            }
+            
+            SetBehaviors();
+            SetBoundries();
+            CenterBallOnPaddle();
+            _dynamicAni.updateItemUsingCurrentState(_ballView);
+        }
+    }
+    
+    func UpdateDisplay()
+    {
+        self.livesLabel.text = String(_MaxLives - _UsedLives);
+        self.scoreLabel.text = String(_Score);
     }
     
     func SpeedForBall() -> CGFloat
